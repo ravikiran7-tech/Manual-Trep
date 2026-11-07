@@ -1,0 +1,331 @@
+[Studio] App-DB Dependency Code Changes & Progress Tracking [Java-MSSQL and C#-MSSQL]
+Description
+
+Reference - MOD-6599: [Oracle -> Postgre] App-DB Dependency Code Changes & Progress Tracking [Java-Oracle]
+PM Review
+ 
+
+Java - MS SQL Rules Remediation (only active rules) → 
+https://trianz365.sharepoint.com/:x:/s/Modernization/IQCXoC5wGzMgTp05MY5K345FAVTXMnV-FiOtMc2263WSwlA?e=mQbGMZConnect OneDrive to update - MOD-7758: [Scanner] Inactivate Java-MSSQL DB Dependency Rules 
+QA
+ 
+
+C# - MS SQL Rules Remediation (only active rules) → 
+https://trianz365.sharepoint.com/:x:/s/Modernization/IQDkmQ8l6olGQ6KO4JPZGv2pAesVNRIWpImg75-qjBxR3GQ?e=nCm49qConnect OneDrive to update - MOD-7759: [Scanner] Inactivate C#-MSSQL DB Dependency Rules
+QA
+ 
+
+Background
+After MSSQL → PostgreSQL DB schema conversion completes (Job 2), the Java or C# application code requires targeted changes to remain compatible with the transformed PostgreSQL database. These changes are driven by the dependency rules applied during scanning and the findings stored in Db-dependency/Java-MSSQL-dependency.json (for Java apps) or Db-dependency/CSharp-MSSQL-dependency.json (for C# apps).
+
+Job 3 reads those findings, applies remediations from the appropriate language-specific Remediation KB — Java-MSSQL Remediation KB or C#-MSSQL Remediation KB — and produces a modified codebase with a post-transformation report and a separate GitHub commit.
+
+For M-Basic and M-Container-Mono pathways, additional configuration file and infrastructure-level changes are required beyond violation remediations to ensure the containerised/cloud-ready application connects correctly to the transformed PostgreSQL database.
+
+Note — Per-file breakdown in the Dependency Resolution Plan screen is not required. The same UX as the M-Basic app modernization flow applies: total violations and per-violation summary only, no per-file breakdown.
+
+Studio Left Panel — Job 3 Structure
+
+
+Job 3: App-DB Dependency Code Changes
+  → Configurations
+      → Rules Selection
+      → Dependency Resolution Plan
+  → Transformation
+      → Code Transformation
+  → Artifacts
+      → Post-Transformation Report
+      → GitHub Commit
+Right panel: Progress bar + Logs throughout the Transformation phase.
+
+Functional Requirements
+Phase 1: Configurations
+FR1: Rules Selection
+Similar to current implementation of rules configuration in app and schema transformation jobs.
+
+The system SHALL present the MSSQL-language dependency rules identified during scanning for user review before transformation begins. Rules selection UI follows the same pattern as the DB schema conversion job:
+
+Apply All Rules — all rules applied (recommended, default)
+
+High Impact Only — only critical/high severity rules applied
+
+Customize — user toggles individual rules on/off
+
+Each rule SHALL display:
+
+Rule ID (sql-java-XXX for Java-MSSQL; sql-csharp-XXX for C#-MSSQL)
+
+Rule Name
+
+Rule Description
+
+Category
+
+Impact level (Critical / High / Moderate / Low)
+
+Summary cards above the rule list:
+
+Rules Applied count
+
+Rules Excluded count
+
+High Impact count
+
+FR2: Dependency Resolution Plan
+After rules selection, the system SHALL generate and display a Dependency Resolution Plan for user review and confirmation before transformation begins.
+
+The plan SHALL show:
+
+Total violations found (from Java-MSSQL-dependency.json or CSharp-MSSQL-dependency.json)
+
+Violations in scope (based on selected rules)
+
+Per-violation summary: rule ID, rule name, affected line(s), remediation to be applied
+
+Note — Per-file breakdown is not required. Same UX as M-Basic app modernization applies.
+
+The user reviews the plan and confirms via an "Approve and Start Transformation" CTA. This is a review-and-confirm step — no modification of individual remediations at this stage.
+
+If zero violations are in scope (either zero findings or all rules deselected):
+
+Plan displays: "No violations found in scope. Transformation will apply baseline PostgreSQL compatibility changes only."
+
+User can still proceed.
+
+Phase 2: Transformation
+FR3: Right Panel — Progress and Logs Tabs
+The right panel SHALL be visible throughout the Transformation phase with two tabs:
+
+Progress tab (default active): Shows overall progress status and milestone-level transformation progress
+
+Logs tab: Shows real-time log stream of transformation activity at file/operation level
+
+The Progress tab SHALL contain two sections:
+
+Section 1 — Overall Progress: A single status banner showing current overall state:
+
+In Progress: "App-DB Dependency Transformation in progress."
+
+Completed: "App-DB Dependency Code Changes Completed Successfully."
+
+Failed: "App-DB Dependency Transformation encountered an error."
+
+Section 2 — Transformation Progress: An expandable card keyed to the application being transformed, showing Application name and Application ID. Below the card header, sequential milestone steps each with a title (bold, coloured when active/complete) and a one-line description, updating in real time:
+
+#
+
+Milestone Title
+
+One-Line Description
+
+1
+
+Initializing Transformation
+
+Loading dependency findings and remediation rules
+
+2
+
+Applying Violation Remediations
+
+Remediating MSSQL-language dependency violations in source files
+
+3
+
+Applying PostgreSQL Compatibility Changes
+
+Updating config, connection drivers, and ORM settings
+
+4
+
+Generating Artifacts
+
+Creating post-transformation report and preparing GitHub commit
+
+5
+
+Transformation Complete
+
+All changes applied successfully
+
+Milestone states: Pending (greyed out, no icon) / In Progress (active colour, spinner icon) / Completed (green checkmark icon) / Failed (red cross icon).
+
+Milestones 1–5 are generic and apply identically across M-Upgrade, M-Basic, and M-Container-Mono pathways. Milestone 3 description remains the same regardless of pathway — the underlying scope differs per pathway (FR4/FR5) but is not surfaced at milestone level.
+
+The Logs tab SHALL display a real-time scrollable log stream. Each log entry SHALL follow this format:
+
+
+
+[HH:MM:SS] [LEVEL] Message
+Log levels: INFO, WARN, ERROR. Live logs from LLM — similar implementation as schema conversion.
+
+FR4: Code Transformation — All Pathways (Common)
+On confirmation, the system SHALL execute the following against the Java or C# source codebase:
+
+Read Java-MSSQL-dependency.json (Java apps) or CSharp-MSSQL-dependency.json (C# apps) findings
+
+For each finding where the corresponding rule is selected:
+
+Look up remediation in the appropriate Remediation KB JSON (java-mssql-remediation-kb.json or csharp-mssql-remediation-kb.json)
+
+Apply remediation to the affected source file(s)
+
+Track change: file modified, rule applied, line(s) changed, remediation ID
+
+Generate change tracking metadata for use in Post-Transformation Report
+
+FR5: Additional Changes — M-Basic Pathway
+For M-Basic (cloud readiness) pathway, in addition to violation remediations, the system SHALL apply the following PostgreSQL compatibility changes:
+
+Datasource Configuration:
+
+Update application.properties / application.yml (Java) or appsettings.json / connection string config (C#):
+
+spring.datasource.url → PostgreSQL JDBC URL format jdbc:postgresql://[host]:[port]/[dbname] (Java)
+
+spring.datasource.driver-class-name → org.postgresql.Driver (Java)
+
+Connection string host/port/database → PostgreSQL values with placeholder (C#)
+
+Username / password → placeholder values with inline comment
+
+Replace MSSQL JDBC / ADO.NET driver dependency in pom.xml / build.gradle (Java) or .csproj (C#):
+
+Remove: mssql-jdbc / Microsoft.Data.SqlClient dependency
+
+Add: postgresql JDBC driver (Java) or Npgsql NuGet package (C#) — latest stable version
+
+ORM / Persistence Configuration (if applicable):
+
+Update Hibernate dialect → org.hibernate.dialect.PostgreSQLDialect (Java)
+
+Update persistence.xml or JPA configuration if present (Java)
+
+Update EF Core DbContext → UseNpgsql() in place of UseSqlServer() (C#)
+
+Flag MSSQL-specific ORM annotations or named queries for manual review
+
+Cloud Datasource Compatibility:
+
+If cloud-managed DB service endpoint pattern detected:
+
+AWS RDS: add ?ssl=true&sslmode=require
+
+Azure PostgreSQL: add ?sslmode=require&sslfactory=org.postgresql.ssl.NonValidatingFactory (Java) or SSL Mode=Require in connection string (C#)
+
+GCP Cloud SQL: add ?socketFactory=com.google.cloud.sql.postgres.SocketFactory (Java)
+
+Flag for manual review: "Verify cloud DB endpoint and credentials before deployment"
+
+Connection Pool:
+
+If MSSQL connection pooling detected: replace with HikariCP configuration (Java) or NpgsqlDataSource pooling (C#)
+
+Add HikariCP dependency to pom.xml / build.gradle if not present (Java)
+
+FR6: Additional Changes — M-Container-Mono Pathway
+For M-Container-Mono (containerisation) pathway, in addition to violation remediations and all M-Basic datasource changes (FR5), the system SHALL apply the following container-level PostgreSQL compatibility changes:
+
+Dockerfile (if present):
+
+Replace MSSQL JDBC driver COPY / ADD instructions
+
+Add PostgreSQL DB connection environment variable declarations with placeholders:
+
+
+
+ENV DB_HOST=<placeholder>
+ENV DB_PORT=5432
+ENV DB_NAME=<placeholder>
+ENV DB_USER=<placeholder>
+ENV DB_PASSWORD=<placeholder>
+Add inline comments flagging placeholder values for manual replacement
+
+docker-compose.yml (if present):
+
+Update DB service environment variables to PostgreSQL format
+
+Replace MSSQL DB service definition with PostgreSQL service:
+
+
+
+db:
+  image: postgres:15
+  environment:
+    POSTGRES_DB: <placeholder>
+    POSTGRES_USER: <placeholder>
+    POSTGRES_PASSWORD: <placeholder>
+  ports:
+    - "5432:5432"
+Kubernetes Manifests (if present):
+
+Update DB environment variable references to PostgreSQL format using Secret references
+
+Generate sample db-secret.yaml Secret manifest with placeholder PostgreSQL values
+
+Flag for manual review: "Apply db-secret.yaml with actual PostgreSQL credentials before deployment"
+
+Health Check Configuration:
+
+If MSSQL-specific health check SQL detected (e.g., SELECT 1 with MSSQL driver context):
+
+Replace with PostgreSQL-compatible SELECT 1
+
+Flag for manual review
+
+CI/CD Pipeline Files (if detected):
+
+No automated changes applied
+
+Flag MSSQL driver references for manual review
+
+Add inline comment where possible
+
+Phase 3: Artifacts
+FR7: Post-Transformation Report
+Covered in Feature 5 (post-transformation report spec). Job 3 triggers report generation on transformation completion.
+
+FR8: GitHub Commit
+Covered in Feature 6 (GitHub commit spec). Job 3 triggers a separate GitHub commit to target branch on transformation completion.
+
+FR9: Artifacts Phase Completion
+Once Post-Transformation Report and GitHub Commit are both complete, Job 3 status updates to "Completed" in the left panel. Job 4 (Validation / Test Artifacts) CTA becomes available.
+
+Acceptance Criteria
+Job 3 appears in Studio left panel in "To Do" state when the combined pathway enters Studio
+
+Job 3 becomes interactive only after Job 2 completes
+
+Rules Selection displays all MSSQL-language dependency rules (identified during scan) with correct metadata — sql-java-XXX for Java-MSSQL, sql-csharp-XXX for C#-MSSQL
+
+Rules Selection supports Apply All / High Impact Only / Customize modes
+
+Dependency Resolution Plan generated correctly from Java-MSSQL-dependency.json or CSharp-MSSQL-dependency.json filtered by selected rules; per-file breakdown is not shown
+
+"Approve and Start Transformation" CTA triggers transformation on plan confirmation
+
+Right panel Progress tab visible and active during transformation
+
+Right panel Logs tab shows real-time log stream during transformation
+
+Overall Progress banner updates correctly across In Progress / Completed / Failed states
+
+5 milestone steps appear in Transformation Progress card and update sequentially in real time
+
+Milestone steps are identical across M-Upgrade, M-Basic, M-Container-Mono pathways
+
+Violation remediations applied correctly from the appropriate Remediation KB JSON for all selected rules — Java-MSSQL KB for Java apps, C#-MSSQL KB (17 batches, 196 rules) for C# apps
+
+M-Basic additional changes applied: datasource config, JDBC / ADO.NET driver, ORM dialect, connection pool
+
+M-Container-Mono additional changes applied: Dockerfile, docker-compose, K8s manifests, health checks
+
+M-Upgrade pathway: violation remediations only — no M-Basic/M-Container-Mono additional changes applied
+
+Post-Transformation Report generation triggered on completion (FR7)
+
+GitHub Commit triggered on completion (FR8)
+
+Job 4 CTA appears after Job 3 completes
+
+Existing app modernization job behaviour (M-Basic, M-Container-Mono) unchanged
