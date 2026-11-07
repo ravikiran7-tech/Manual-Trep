@@ -1,0 +1,349 @@
+[Oracle -> Postgre] App-DB Dependency Code Changes & Progress Tracking [Java-Oracle]
+
+
+
+
+Description
+
+Background
+After Oracle → PostgreSQL DB schema conversion completes (Job 2), the Java application code requires targeted changes to remain compatible with the transformed PostgreSQL database. These changes are driven by the 31 Oracle-Java dependency rules applied and the ones detected during assessment and stored in Db-dependency/Java-Oracle-dependency.json. This job (Job 3) reads those findings, applies remediations from the Oracle-Java Remediation, and produces a modified Java codebase with a post-transformation report and a separate GitHub commit.
+
+For M-Basic and M-Container-Mono pathways, additional configuration file and infrastructure-level changes are required beyond violation remediations to ensure the containerized/cloud-ready application connects correctly to the transformed PostgreSQL database.
+
+Studio Left Panel — Job 3 Structure
+
+
+Job 3: App-DB Dependency Code Changes
+  → Configurations
+      → Rules Selection
+      → Dependency Resolution Plan
+  → Transformation
+      → Code Transformation
+  → Artifacts
+      → Post-Transformation Report
+      → GitHub Commit
+Right panel: Progress bar + Logs throughout Transformation phase.
+
+Functional Requirements
+Phase 1: Configurations
+FR1: Rules Selection
+
+Similar to current implementation of rules configuration in app and schema transformation jobs.
+
+The system SHALL present the Oracle-Java dependency rules identified during scanning for user review before transformation begins. Rules selection UI follows the same pattern as the DB schema conversion job:
+
+Apply All Rules — all rules applied (recommended, default)
+
+High Impact Only — only critical/high severity rules applied
+
+Customize — user toggles individual rules on/off
+
+Each rule SHALL display:
+
+Rule ID (ora-java-XXX)
+
+Rule Name
+
+Rule Description
+
+Category (one of 6 categories)
+
+Impact level (Critical / High / Moderate / Low)
+
+Summary cards above the rule list:
+
+Rules Applied count
+
+Rules Excluded count
+
+High Impact count
+
+FR2: Dependency Resolution Plan
+
+After rules selection, the system SHALL generate and display a Dependency Resolution Plan for user review and confirmation before transformation begins.
+
+The plan SHALL show:
+
+Total violations found (from Java-Oracle-dependency.json)
+
+Violations in scope (based on selected rules)
+
+Per-file breakdown: file name, violation count, rules triggered
+
+Per-violation summary: rule ID, rule name, affected line(s), remediation to be applied
+
+The user reviews the plan and confirms via a "Approve and Start Transformation" CTA. This is a review-and-confirm step — no modification of individual remediations at this stage.
+
+If zero violations are in scope (either zero findings or all rules deselected):
+
+Plan displays: "No violations found in scope. Transformation will apply baseline PostgreSQL compatibility changes only."
+
+User can still proceed.
+
+Phase 2: Transformation
+FR3: Right Panel — Progress and Logs Tabs
+
+The right panel SHALL be visible throughout the Transformation phase with two tabs:
+
+Progress tab (default active): Shows overall progress status and milestone-level transformation progress
+
+Logs tab: Shows real-time log stream of transformation activity at file/operation level
+
+The Progress tab SHALL contain two sections:
+
+Section 1 — Overall Progress:
+A single status banner showing current overall state:
+
+In Progress: "App-DB Dependency Transformation in progress."
+
+Completed: "App-DB Dependency Code Changes Completed Successfully."
+
+Failed: "App-DB Dependency Transformation encountered an error."
+
+Section 2 — Transformation Progress:
+An expandable card keyed to the application being transformed, showing:
+
+Application name
+
+Application ID
+
+Below the card header, sequential milestone steps each with a title (bold, coloured when active/complete) and a one-line description. Steps update in real time as transformation progresses:
+
+#
+
+Milestone Title
+
+One-Line Description
+
+1
+
+Initializing Transformation
+
+Loading dependency findings and remediation rules
+
+2
+
+Applying Violation Remediations
+
+Remediating Oracle-Java dependency violations in source files
+
+3
+
+Applying PostgreSQL Compatibility Changes
+
+Updating config, connection drivers, and ORM settings
+
+4
+
+Generating Artifacts
+
+Creating post-transformation report and preparing GitHub commit
+
+5
+
+Transformation Complete
+
+All changes applied successfully
+
+Milestone states:
+
+Pending: greyed out, no icon
+
+In Progress: active colour, spinner icon
+
+Completed: green checkmark icon
+
+Failed: red cross icon
+
+Note: Milestones 1–5 are generic and apply identically across M-Upgrade, M-Basic, and M-Container-Mono pathways. Milestone 3 description remains the same regardless of pathway — the underlying scope of changes differs per pathway (FR4/FR5) but is not surfaced at milestone level.
+
+The Logs tab SHALL display a real-time scrollable log stream. Each log entry SHALL follow this format:
+
+
+
+[HH:MM:SS] [LEVEL] Message
+Log levels: INFO, WARN, ERROR
+
+Log entry : Live logs from LLM (similar implementation as schema conversion)
+
+FR4: Code Transformation — All Pathways (Common)
+
+On confirmation, the system SHALL execute the following against the Java source codebase:
+
+Read Java-Oracle-dependency.json findings
+
+For each finding where the corresponding rule is selected:
+
+Look up remediation in Oracle-Java Remediation KB JSON (placeholder: <oracle-java-remediation-kb>.json)
+
+Apply remediation to the affected Java source file(s)
+
+Track change: file modified, rule applied, line(s) changed, remediation ID
+
+Generate change tracking metadata for use in Post-Transformation Report
+
+FR5: Additional Changes — M-Basic Pathway
+
+For M-Basic (cloud readiness) pathway, in addition to violation remediations, the system SHALL apply the following PostgreSQL compatibility changes:
+
+Datasource Configuration:
+
+Update application.properties / application.yml:
+
+spring.datasource.url → PostgreSQL JDBC URL format (jdbc:postgresql://[host]:[port]/[dbname])
+
+spring.datasource.driver-class-name → org.postgresql.Driver
+
+spring.datasource.username / spring.datasource.password → placeholder values with inline comment
+
+Replace Oracle JDBC driver dependency in pom.xml / build.gradle:
+
+Remove: ojdbc dependency
+
+Add: postgresql JDBC driver dependency (latest stable version)
+
+ORM / Persistence Configuration (if applicable):
+
+Update hibernate.dialect → org.hibernate.dialect.PostgreSQLDialect
+
+Update persistence.xml or JPA configuration if present
+
+Flag Oracle-specific JPA annotations or named queries for manual review
+
+Cloud Datasource Compatibility:
+
+If cloud-managed DB service endpoint pattern detected:
+
+AWS RDS: add ?ssl=true&sslmode=require
+
+Azure PostgreSQL: add ?sslmode=require&sslfactory=org.postgresql.ssl.NonValidatingFactory
+
+GCP Cloud SQL: add ?socketFactory=com.google.cloud.sql.postgres.SocketFactory
+
+Flag for manual review: "Verify cloud DB endpoint and credentials before deployment"
+
+Connection Pool:
+
+If Oracle UCP detected: replace with HikariCP configuration
+
+Add HikariCP dependency to pom.xml / build.gradle if not present
+
+FR6: Additional Changes — M-Container-Mono Pathway
+
+For M-Container-Mono (containerization) pathway, in addition to violation remediations and all M-Basic datasource changes (FR7), the system SHALL apply the following container-level PostgreSQL compatibility changes:
+
+Dockerfile:
+
+Replace Oracle JDBC driver COPY / ADD instructions
+
+Add PostgreSQL DB connection environment variable declarations with placeholders:
+
+
+
+  ENV DB_HOST=<placeholder>
+  ENV DB_PORT=5432
+  ENV DB_NAME=<placeholder>
+  ENV DB_USER=<placeholder>
+  ENV DB_PASSWORD=<placeholder>
+Add inline comments flagging placeholder values for manual replacement
+
+docker-compose.yml (if present):
+
+Update DB service environment variables to PostgreSQL format
+
+Replace Oracle DB service definition with PostgreSQL service:
+
+yaml
+
+
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: <placeholder>
+      POSTGRES_USER: <placeholder>
+      POSTGRES_PASSWORD: <placeholder>
+    ports:
+      - "5432:5432"
+Kubernetes Manifests (if present):
+
+Update DB environment variable references to PostgreSQL format using Secret references:
+
+yaml
+
+
+
+  env:
+    - name: DB_URL
+      valueFrom:
+        secretKeyRef:
+          name: db-secret
+          key: url
+Generate sample db-secret.yaml Secret manifest with placeholder PostgreSQL values
+
+Flag for manual review: "Apply db-secret.yaml with actual PostgreSQL credentials before deployment"
+
+Health Check Configuration:
+
+If Oracle-specific health check SQL detected (e.g., SELECT 1 FROM DUAL):
+
+Replace with: SELECT 1
+
+Flag for manual review
+
+CI-CD Pipeline Files (if detected):
+
+No automated changes applied
+
+Flag Oracle JDBC driver references for manual review
+
+Add inline comment where possible
+
+Phase 3: Artifacts
+FR7: Post-Transformation Report
+Covered in Feature 5. Job 3 triggers report generation on transformation completion.
+
+FR8: GitHub Commit
+Covered in Feature 6. Job 3 triggers a separate GitHub commit to target branch on transformation completion.
+
+FR9: Artifacts Phase Completion
+Once Post-Transformation Report and GitHub Commit are both complete, Job 3 status updates to "Completed" in left panel. Job 4 (Validation / Test Artifacts) CTA becomes available.
+
+Acceptance Criteria
+Job 3 appears in Studio left panel in "To Do" state when combined pathway entered Studio
+
+Job 3 becomes interactive only after Job 2 completes
+
+Rules Selection displays all Oracle-Java dependency rules (identified during scan) with correct metadata
+
+Rules Selection supports Apply All / High Impact Only / Customize modes
+
+Dependency Resolution Plan generated correctly from Java-Oracle-dependency.json filtered by selected rules
+
+"Approve and Start Transformation" CTA triggers transformation on plan confirmation
+
+Right panel Progress tab visible and active during transformation
+
+Right panel Logs tab shows real-time log stream during transformation
+
+Overall Progress banner updates correctly across In Progress / Completed / Failed states
+
+5 milestone steps appear in Transformation Progress card and update sequentially in real time
+
+Milestone steps are identical across M-Upgrade, M-Basic, M-Container-Mono
+
+Violation remediations applied correctly from Oracle-Java Remediation KB JSON for all selected rules
+
+M-Basic additional changes applied: datasource config, JDBC driver, ORM dialect, connection pool
+
+M-Container-Mono additional changes applied: Dockerfile, docker-compose, K8s manifests, health checks
+
+M-Upgrade pathway: violation remediations only - no M-Basic/M-Container-Mono additional changes applied
+
+Post-Transformation Report generation triggered on completion (Feature 5)
+
+GitHub Commit triggered on completion (Feature 6)
+
+Job 4 CTA appears after Job 3 completes
+
+Existing app modernization job behaviour (M-Basic, M-Container-Mono) unchanged
